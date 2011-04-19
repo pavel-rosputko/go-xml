@@ -48,9 +48,7 @@ func (r *Reader) ReadStartElement() *Fragment {
 
 	fragment.add4(eofType, 0, mark{})
 
-	fragment.bytes = r.bytes
-
-	r.clean()
+	fragment.bytes = r.sliceBytes()
 
 	// TODO add satellite end !?
 
@@ -97,9 +95,7 @@ func (r *Reader) ReadElement() *Fragment {
 
 	fragment.add4(eofType, 0, mark{len(r.bytes), len(r.bytes)})
 
-	fragment.bytes = r.bytes
-
-	r.clean()
+	fragment.bytes = r.sliceBytes()
 
 	return fragment
 }

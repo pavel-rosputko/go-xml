@@ -31,7 +31,10 @@ type parser struct {
 }
 
 func newParser(reader io.Reader) *parser {
-	return &parser{reader: reader, index: -1, length: 0}
+	return &parser{
+		reader: reader,
+		index: -1,
+		length: 0}
 }
 
 // NOTE use slice ?
@@ -39,7 +42,6 @@ type mark struct { s, e int }
 
 // NOTE eofType instead of f bool ?
 func (p *parser) token() (tokenType int, marks []mark, f bool) {
-	println("token")
 	p.get()
 	if p.eof { return }
 
@@ -160,11 +162,20 @@ func (p *parser) token() (tokenType int, marks []mark, f bool) {
 	return
 }
 
-func (p *parser) clean() {
+func (p *parser) sliceBytes() (bytes []byte) {
+	p.index++
+	bytes, p.bytes = p.bytes[:p.index], p.bytes[p.index:]
+
+	p.length -= p.index
+	p.index = -1
+	return
+}
+
+/* func (p *parser) clean() {
 	p.index = -1
 	p.length = 0
 	p.bytes = []byte{}
-}
+} */
 
 func (p *parser) markEq(m1, m2 mark) bool {
 	if m1.e - m1.s != m2.e - m2.s { return false }

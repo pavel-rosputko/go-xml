@@ -27,23 +27,25 @@ func TestCursor(t *testing.T) {
 	cmp(c.MustChars(), "text")
 }
 
-func TestInsert(t *testing.T) {
-	println("TestInsert")
-	r := NewReader(strings.NewReader(cursorXml))
-	c := r.ReadElement().Cursor()
-
-	gt = t
-
-	c.SetAttr("kkk", "vvv")
-	c.SetAttr("kk", "vv-new")
-	println("xml =", c.Fragment.String())
-}
-
-func TestChildString(t *testing.T) {
-	println("TestChildString")
+func TestChildrenString(t *testing.T) {
 	xml := "<a><b/><c/></a>"
 	r := NewReader(strings.NewReader(xml))
 	c := r.ReadElement().Cursor()
 
-	println(c.ChildrenString())
+	if c.ChildrenString() != "<b/><c/>" {
+		t.Fatal("")
+	}
+}
+
+func TestChildrenSlice(t *testing.T) {
+	println("TestChildrenSlice")
+	xml := "<a><b/><c/></a>"
+	r := NewReader(strings.NewReader(xml))
+	c := r.ReadElement().Cursor()
+
+	f := c.ChildrenSlice()
+	println(f.String())
+	if f.String() != "<b/><c/>" {
+		t.Fatal("")
+	}
 }

@@ -7,12 +7,11 @@ type iterator struct {
 }
 
 func (i *iterator) hasNext() bool {
-	return i.nexts[i.index] != -1
+	return i.index + 1 < len(i.descs)
 }
 
 func (i *iterator) next() {
-	println("next: i.index =", i.index, i.string())
-	i.index = i.nexts[i.index]
+	i.index++
 	i.desc = i.descs[i.index]
 }
 
@@ -27,12 +26,3 @@ func (i *iterator) bytes() []byte {
 func (i *iterator) equalString(s string) bool {
 	return i.Fragment.equalString(i.index, s)
 }
-
-func (i *iterator) setString(s string) {
-	i.Fragment.SetString(i.index, s)
-}
-
-func (i *iterator) insertAttr(key, value string) {
-	i.Fragment.insertAttr(i.index, key, value)
-}
-

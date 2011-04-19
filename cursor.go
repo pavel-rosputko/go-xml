@@ -76,22 +76,6 @@ func (c *Cursor) MustChars() string {
 	return v
 }
 
-func (c *Cursor) SetAttr(key, value string) {
-	i := c.iterator
-
-	i.next()
-	for i.hasNext() && i.tokenType() == keyType && !i.equalString(key) {
-		i.next(); i.next()
-	}
-
-	if i.tokenType() == keyType {
-		i.next()
-		i.setString(value)
-	} else {
-		i.insertAttr(key, value)
-	}
-}
-
 func (c *Cursor) ChildrenString() string {
 	i := c.iterator
 
@@ -108,6 +92,28 @@ func (c *Cursor) ChildrenString() string {
 	endIndex := i.desc.off() - 2 // </
 
 	return string(c.Fragment.bytes[startIndex:endIndex])
+}
+
+func (c *Cursor) ChildrenSlice() *Fragment {
+	fragment := newFragment()
+
+	i := c.iterator
+
+	i.next()
+	for i.tokenType() != startType {
+		i.next()
+	}
+
+	startIndex := i.desc.off() - 1 // <
+	for i.depth() != c.depth() {
+		fragment.add(i.desc)
+		i.next()
+	}
+	endIndex := i.desc.off() - 2 // </
+
+	fragment.bytes = c.Fragment.bytes[startIndex:endIndex]
+
+	return fragment
 }
 
 // func (c *Cursor) AttrIndex(s string) int
