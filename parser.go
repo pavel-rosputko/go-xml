@@ -23,9 +23,7 @@ const (
 // NOTE: use bytes.Buffer instead of bytes ?
 type parser struct {
 	reader	io.Reader
-	next	byte
 	index	int
-	eof	bool
 	bytes	[]byte
 	buffer	[]byte
 }
@@ -33,149 +31,118 @@ type parser struct {
 func newParser(reader io.Reader) *parser {
 	return &parser{
 		reader: reader,
-		index: -1,
-		buffer: make([]byte, 1024)}
+		buffer: make([]byte, 1024),
+	}
 }
 
-// NOTE use slice ?
 type mark struct { s, e int }
 
 // NOTE eofType instead of f bool ?
 func (p *parser) token() (tokenType int, marks []mark, f bool) {
-	p.get()
-	if p.eof { return }
+	b, e := p.get()
+	if e { return }
 
 	f = true
-	if p.next != '<' { // text
-		index := p.index
-		// move internal
-		for !p.eof && p.next != '<' { p.get() }
-
-		tokenType, marks = charsType, []mark{{index, p.index}}
+	if b != '<' { // text
 		p.back()
+		tokenType, marks = charsType, []mark{p.markUntilEOFOr('<')}
 		return
 	}
 
-	p.mustGet()
-	switch p.next {
+	switch p.mustGet() {
 	case '/': // end tag
-		p.mustGet()
-		index := p.index
+		tokenType, marks = endType, []mark{p.name()}
 
-		p.name()
-		tokenType, marks = endType, []mark{{index, p.index}}
-
-		p.space()
-
-		if p.next != '>' { p.error("invalid characters between </ and >") }
+		if p.mustGetNonSpace() != '>' {
+			p.error("invalid characters between </ and >")
+		}
 	case '?': // directive
-		p.mustGet()
 		index := p.index
-
-		var b byte
-		for !(b == '?' && p.next == '>') {
-			b = p.next
-			p.mustGet()
+		var  bb, b byte
+		for !(bb == '?' && b == '>') {
+			bb, b = b, p.mustGet()
 		}
 
-		tokenType, marks = directiveType, []mark{{index, p.index - 1}}
+		tokenType, marks = directiveType, []mark{{index, p.index - 2}}
 	case '!': // comment or cdata
-		p.mustGet()
-		switch p.next {
+		switch p.mustGet() {
 		case '-':
-			p.mustGet()
-			if p.next != '-' { p.error("invalid sequence <!- not part of <!--") }
-
-			p.mustGet()
-			index := p.index
-
-			var b0, b1 byte
-			for !(b0 == '-' && b1 == '-' && p.next == '>') {
-				b0, b1 = b1, p.next
-				p.mustGet()
+			if p.mustGet() != '-' {
+				p.error("invalid sequence <!- not part of <!--")
 			}
 
-			tokenType, marks = commentType, []mark{{index, p.index - 2}}
+			index := p.index
+			var b3, b2, b1 byte
+			for !(b3 == '-' && b2 == '-' && b1 == '>') {
+				b3, b2, b1 = b2, b1, p.mustGet()
+			}
+
+			tokenType, marks = commentType, []mark{{index, p.index - 3}}
 		case '[':
 			for i := 0; i < 6; i++ {
-				p.mustGet()
-				if p.next != "CDATA"[i] { p.error("invalid <![ sequence") }
+				if p.mustGet() != "CDATA"[i] {
+					p.error("invalid <![ sequence")
+				}
 			}
 
-			p.mustGet()
 			index := p.index
-
-			var b byte
-			for !(b == ']' && p.next == ']') {
-				b = p.next
-				p.mustGet()
+			var bb, b byte
+			for !(bb == ']' && b == ']') {
+				bb, b = b, p.mustGet()
 			}
 
-			tokenType, marks = cdataType, []mark{{index, p.index - 1}}
+			tokenType, marks = cdataType, []mark{{index, p.index - 2}}
 		default:
 			// probably a directive <!
 		}
 	default: // start tag
-		index := p.index
-		p.name()
-		tokenType, marks = startType, []mark{{index, p.index}}
+		p.back()
+		tokenType, marks = startType, []mark{p.name()}
 
 		var empty bool
 		for {
-			p.space()
-
-			if p.next == '/' { // empty tag
+			b := p.mustGetNonSpace()
+			if b == '/' { // empty tag
 				empty = true
-				p.mustGet()
-				if p.next != '>' { p.error("expected /> in element") }
+				if p.mustGet() != '>' {
+					p.error("expected /> in element")
+				}
+				break
+			} else if b == '>' {
 				break
 			}
+			p.back()
 
-			if p.next == '>' { break }
+			marks = append(marks, p.name())
 
-			index := p.index
-			p.name()
-			marks = append(marks, mark{index, p.index})
+			if p.mustGetNonSpace() != '='  {
+				p.error("attribute name without = in element")
+			}
 
-			p.space()
+			b = p.mustGetNonSpace()
+			if b != '\'' && b != '"' {
+				p.error("unquoted attribute value")
+			}
 
-			if p.next != '='  { p.error("attribute name without = in element") }
-			p.mustGet()
-
-			p.space()
-
-			if p.next != '\'' && p.next != '"' { p.error("unquoted attribute value") }
-			delim := p.next
-
-			p.mustGet()
-			index = p.index
-
-			for p.next != delim { p.mustGet() }
-
-			marks = append(marks, mark{index, p.index})
+			marks = append(marks, p.markUntil(b))
 
 			p.mustGet()
 		}
 
-		if empty { marks = append(marks, mark{}) }
+		if empty {
+			marks = append(marks, mark{})
+		}
 	}
 
 	return
 }
 
 func (p *parser) sliceBytes() (bytes []byte) {
-	p.index++
 	bytes, p.bytes = p.bytes[:p.index], p.bytes[p.index:]
 
-	p.index = -1
+	p.index = 0
 	return
 }
-
-/* func (p *parser) clean() {
-	p.index = -1
-	p.length = 0
-	p.bytes = []byte{}
-} */
 
 func (p *parser) markEq(m1, m2 mark) bool {
 	if m1.e - m1.s != m2.e - m2.s { return false }
@@ -193,6 +160,119 @@ func (p *parser) string(m mark) string {
 	return string(p.bytes[m.s:m.e])
 }
 
+func (p *parser) back() {
+	p.index--
+}
+
+func (p *parser) error(s string) {
+	panic(s)
+}
+
+func (p *parser) read() bool {
+	// TODO more efficiently ? use buffered reader
+	l, e := p.reader.Read(p.buffer)
+
+	// XXX when p.reader is tls.Conn Read can return (0, nil)
+	if l == 0 && e == nil {
+		l, e = p.reader.Read(p.buffer)
+	}
+	buffer := p.buffer[:l]
+	// buf = buf[:length]
+	// println("get: bytes =", string(bytes))
+	// assert (e == os.EOF && p.l == 0)
+
+	if e != nil {
+		if e == os.EOF { return false } else { panic(e) }
+	}
+
+	p.bytes = append(p.bytes, buffer...)
+
+	return true
+}
+
+func (p *parser) mustRead() {
+	if !p.read() {
+		p.error("unexpected EOF")
+	}
+}
+
+func (p *parser) get() (b byte, e bool) {
+	if p.index == len(p.bytes) {
+		if !p.read() {
+			e = true
+			return
+		}
+	}
+
+	b = p.bytes[p.index]
+	p.index++
+	return
+}
+
+func (p *parser) mustGet() byte {
+	b, e := p.get()
+	if e { p.error("unexpected EOF") }
+	return b
+}
+
+func isSpace(b byte) bool {
+	return b == ' ' || b == '\r' || b == '\n' || b == '\t'
+}
+
+func (p *parser) mustGetNonSpace() (b byte) {
+	for {
+		if p.index == len(p.bytes) {
+			p.mustRead()
+		}
+
+		b = p.bytes[p.index]
+		p.index++
+
+		if !isSpace(b) {
+			break
+		}
+	}
+	return
+}
+
+func (p *parser) markUntil(b byte) (m mark) {
+	m.s = p.index
+	for {
+		if p.index == len(p.bytes) {
+			p.mustRead()
+		}
+
+		if p.bytes[p.index] == b {
+			break
+		}
+
+		p.index++
+	}
+
+	m.e = p.index
+	return
+}
+
+func (p *parser) markUntilEOFOr(b byte) (m mark) {
+	m.s = p.index
+	for {
+		if p.index == len(p.bytes) {
+			if !p.read() {
+				break
+			}
+		}
+
+		if p.bytes[p.index] == b {
+			break
+		}
+
+		p.index++
+	}
+
+	m.e = p.index
+	return
+}
+
 func isNameByte(b byte) bool {
 	return 'A' <= b && b <= 'Z' ||
 		'a' <= b && b <= 'z' ||
@@ -200,64 +280,27 @@ func isNameByte(b byte) bool {
 		b == '_' || b == ':' || b == '.' || b == '-'
 }
 
-func (p *parser) name() {
-	if !(p.next >= utf8.RuneSelf || isNameByte(p.next)) { p.error("invalid tag name first letter") }
+func (p *parser) name() (m mark) {
+	m.s = p.index
+	if b := p.mustGet(); !(b >= utf8.RuneSelf || isNameByte(b)) {
+		p.error("invalid tag name first letter")
+	}
 
-	p.mustGet()
+	for {
+		if p.index == len(p.bytes) {
+			p.mustRead()
+		}
 
-	for p.next >= utf8.RuneSelf || isNameByte(p.next) { p.mustGet() }
+		if b := p.bytes[p.index]; !(b >= utf8.RuneSelf || isNameByte(b)) {
+			break
+		}
+
+		p.index++
+
+	}
+
+	m.e = p.index
+	return
 
 	// TODO check the characters in [i:p.index]
 }
-
-func (p *parser) space() {
-	for p.next == ' ' || p.next == '\r' || p.next == '\n' || p.next == '\t' { p.mustGet() }
-}
-
-
-func (p *parser) back() {
-	p.index--
-	p.next = p.bytes[p.index]
-}
-
-func (p *parser) error(s string) {
-	panic(s)
-}
-
-func (p *parser) get() {
-	if p.eof { return }
-
-	p.index++
-	if p.index >= len(p.bytes) {
-		// TODO more efficiently ? use buffered reader
-		length, error := p.reader.Read(p.buffer)
-
-		// XXX when p.reader is tls.Conn Read can return (0, nil)
-		if length == 0 && error == nil {
-			length, error = p.reader.Read(p.buffer)
-		}
-		buffer := p.buffer[:length]
-		// buf = buf[:length]
-		// println("get: bytes =", string(bytes))
-		// assert (e == os.EOF && p.l == 0)
-
-		if error != nil {
-			if error == os.EOF {
-				p.eof = true
-				return
-			} else {
-				panic(error)
-			}
-		}
-
-		p.bytes = append(p.bytes, buffer...)
-	}
-
-	p.next = p.bytes[p.index]
-}
-
-func (p *parser) mustGet() {
-	p.get()
-	if p.eof { p.error("unexpected EOF") }
-}
-

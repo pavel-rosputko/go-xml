@@ -23,7 +23,7 @@ func TestToken(t *testing.T) {
 			break
 		}
 
-		// println("i =", i, "j =", j, tt, p.String(m[0]), parserXmlTypes[i])
+		// println("i =", i, "j =", j, tt, p.string(m[0]), parserXmlTypes[i])
 
 		if a, b := tt, parserXmlTypes[i]; a != b { t.Fatalf("wrong token type, a = %v, b = %v", a, b) }
 		if tt == startType {
