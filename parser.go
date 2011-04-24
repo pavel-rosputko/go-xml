@@ -19,6 +19,12 @@ const (
 	eofType
 )
 
+const (
+	noneState = iota
+	startState
+	keyState
+)
+
 // NOTE a: Indexer
 // NOTE: use bytes.Buffer instead of bytes ?
 type parser struct {
@@ -35,23 +41,23 @@ func newParser(reader io.Reader) *parser {
 	}
 }
 
-type mark struct { s, e int }
+type Mark struct { S, E int }
 
 // NOTE eofType instead of f bool ?
-func (p *parser) token() (tokenType int, marks []mark, f bool) {
+func (p *parser) token() (tokenType int, mark Mark) {
 	b, e := p.get()
 	if e { return }
 
 	f = true
 	if b != '<' { // text
 		p.back()
-		tokenType, marks = charsType, []mark{p.markUntilEOFOr('<')}
+		tokenType, mark = charsType, p.markUntilEOFOr('<')
 		return
 	}
 
 	switch p.mustGet() {
 	case '/': // end tag
-		tokenType, marks = endType, []mark{p.name()}
+		tokenType, mark = endType, p.name()
 
 		if p.mustGetNonSpace() != '>' {
 			p.error("invalid characters between </ and >")
@@ -63,7 +69,7 @@ func (p *parser) token() (tokenType int, marks []mark, f bool) {
 			bb, b = b, p.mustGet()
 		}
 
-		tokenType, marks = directiveType, []mark{{index, p.index - 2}}
+		tokenType, mark = directiveType, Mark{index, p.index - 2}
 	case '!': // comment or cdata
 		switch p.mustGet() {
 		case '-':
@@ -77,7 +83,7 @@ func (p *parser) token() (tokenType int, marks []mark, f bool) {
 				b3, b2, b1 = b2, b1, p.mustGet()
 			}
 
-			tokenType, marks = commentType, []mark{{index, p.index - 3}}
+			tokenType, mark = commentType, Mark{index, p.index - 3}
 		case '[':
 			for i := 0; i < 6; i++ {
 				if p.mustGet() != "CDATA"[i] {
@@ -91,13 +97,13 @@ func (p *parser) token() (tokenType int, marks []mark, f bool) {
 				bb, b = b, p.mustGet()
 			}
 
-			tokenType, marks = cdataType, []mark{{index, p.index - 2}}
+			tokenType, mark = cdataType, Mark{index, p.index - 2}
 		default:
 			// probably a directive <!
 		}
 	default: // start tag
 		p.back()
-		tokenType, marks = startType, []mark{p.name()}
+		tokenType, mark = startType, p.name()
 
 		var empty bool
 		for {
@@ -130,7 +136,7 @@ func (p *parser) token() (tokenType int, marks []mark, f bool) {
 		}
 
 		if empty {
-			marks = append(marks, mark{})
+			marks = append(marks, Mark{})
 		}
 	}
 
@@ -144,11 +150,11 @@ func (p *parser) sliceBytes() (bytes []byte) {
 	return
 }
 
-func (p *parser) markEq(m1, m2 mark) bool {
-	if m1.e - m1.s != m2.e - m2.s { return false }
+func (p *parser) markEq(m1, m2 Mark) bool {
+	if m1.E - m1.S != m2.E - m2.S { return false }
 
-	i, j := m1.s, m2.s
-	for i < m1.e {
+	i, j := m1.S, m2.S
+	for i < m1.E {
 		if p.bytes[i] != p.bytes[j] { return false }
 		i++; j++
 	}
@@ -156,8 +162,8 @@ func (p *parser) markEq(m1, m2 mark) bool {
 	return true
 }
 
-func (p *parser) string(m mark) string {
-	return string(p.bytes[m.s:m.e])
+func (p *parser) string(m Mark) string {
+	return string(p.bytes[m.S:m.E])
 }
 
 func (p *parser) back() {
@@ -235,8 +241,8 @@ func (p *parser) mustGetNonSpace() (b byte) {
 	return
 }
 
-func (p *parser) markUntil(b byte) (m mark) {
-	m.s = p.index
+func (p *parser) markUntil(b byte) (m Mark) {
+	m.S = p.index
 	for {
 		if p.index == len(p.bytes) {
 			p.mustRead()
@@ -249,12 +255,12 @@ func (p *parser) markUntil(b byte) (m mark) {
 		p.index++
 	}
 
-	m.e = p.index
+	m.E = p.index
 	return
 }
 
-func (p *parser) markUntilEOFOr(b byte) (m mark) {
-	m.s = p.index
+func (p *parser) markUntilEOFOr(b byte) (m Mark) {
+	m.S = p.index
 	for {
 		if p.index == len(p.bytes) {
 			if !p.read() {
@@ -269,7 +275,7 @@ func (p *parser) markUntilEOFOr(b byte) (m mark) {
 		p.index++
 	}
 
-	m.e = p.index
+	m.E = p.index
 	return
 }
 
@@ -280,8 +286,8 @@ func isNameByte(b byte) bool {
 		b == '_' || b == ':' || b == '.' || b == '-'
 }
 
-func (p *parser) name() (m mark) {
-	m.s = p.index
+func (p *parser) name() (m Mark) {
+	m.S = p.index
 	if b := p.mustGet(); !(b >= utf8.RuneSelf || isNameByte(b)) {
 		p.error("invalid tag name first letter")
 	}
@@ -299,7 +305,7 @@ func (p *parser) name() (m mark) {
 
 	}
 
-	m.e = p.index
+	m.E = p.index
 	return
 
 	// TODO check the characters in [i:p.index]

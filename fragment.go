@@ -18,24 +18,24 @@ func newFragment() *Fragment {
 	}
 }
 
-func (f *Fragment) add4(tokenType, depth int, m mark) {
-	f.add(desc(int64(tokenType) << 60 | int64(depth) << 52 | int64(m.e - m.s) << 32 | int64(m.s)))
+func (f *Fragment) add4(tokenType, depth int, m Mark) {
+	f.add(desc(int64(tokenType) << 60 | int64(depth) << 52 | int64(m.E - m.S) << 32 | int64(m.S)))
 }
 
 func (f *Fragment) add(value desc) {
 	f.descs = append(f.descs, value)
 }
 
-func (f *Fragment) addStart(marks []mark, depth int) {
-	f.add4(startType, depth, marks[0])
+func (f *Fragment) addStart(mark Mark, marks []Mark, depth int) {
+	f.add4(startType, depth, mark)
 
-	for i := 1; i + 1 < len(marks); i += 2 {
+	for i := 0; i + 1 < len(marks); i += 2 {
 		f.add4(keyType, depth, marks[i])
 		f.add4(valueType, depth, marks[i + 1])
 	}
 
-	if len(marks) % 2 == 0 {
-		f.add4(endType, depth, marks[0])
+	if len(marks) % 2 != 0 {
+		f.add4(endType, depth, mark)
 	}
 }
 

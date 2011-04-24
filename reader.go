@@ -5,11 +5,11 @@ import (
 	"io"
 )
 
-type marksStack []mark
+type marksStack []Mark
 
-func (s *marksStack) push(m mark) { *s = append(*s, m) }
-func (s marksStack) top() mark { return s[len(s) - 1] }
-func (sp *marksStack) pop() (m mark, f bool) {
+func (s *marksStack) push(m Mark) { *s = append(*s, m) }
+func (s marksStack) top() Mark { return s[len(s) - 1] }
+func (sp *marksStack) pop() (m Mark, f bool) {
 	s := *sp
 	if len(s) != 0 {
 		m, f = s[len(s) - 1], true
@@ -35,16 +35,16 @@ func NewReader(ioReader io.Reader) *Reader {
 func (r *Reader) ReadStartElement() *Fragment {
 	fragment := newFragment()
 
-	tt, m, f := r.token()
+	tt, m, mm, f := r.token()
 	for {
 		if !f { r.error("no tokens") }
 		if tt == startType { break }
-		tt, m, f = r.token()
+		tt, m, mm, f = r.token()
 	}
 
-	fragment.addStart(m, 0)
+	fragment.addStart(m, mm, 0)
 
-	fragment.add4(eofType, 0, mark{})
+	fragment.add4(eofType, 0, Mark{})
 
 	fragment.bytes = r.sliceBytes()
 
@@ -60,26 +60,26 @@ func (r *Reader) ReadElement() *Fragment {
 	depth := 0
 	done := false
 	for !done {
-		tokenType, marks, f := r.token()
+		tokenType, mark, marks, f := r.token()
 		if !f { r.error("unexpected eof") }
 
 		switch tokenType {
 		case startType:
 			// fmt.Println("startType", marks)
-			fragment.addStart(marks, depth)
+			fragment.addStart(mark, marks, depth)
 
-			if len(marks) % 2 != 0 {
-				r.push(marks[0])
+			if len(marks) % 2 == 0 {
+				r.push(mark)
 				depth++
 			} else {
 				if r.isEmpty() { done = true }
 			}
 		case endType:
 			depth--
-			mark, f := r.pop()
+			startMark, f := r.pop()
 			if !f { r.error("unexpected end tag") }
-			if !r.markEq(marks[0], mark) { panic("wrong end tag name") }
-			fragment.add4(endType, depth, marks[0])
+			if !r.markEq(mark, startMark) { panic("wrong end tag name") }
+			fragment.add4(endType, depth, mark)
 
 			if r.isEmpty() { done = true }
 		case charsType:
@@ -87,13 +87,13 @@ func (r *Reader) ReadElement() *Fragment {
 
 			// skip pre- and after-element chars
 			if depth == 0 { continue }
-			fragment.add4(charsType, depth, marks[0])
+			fragment.add4(charsType, depth, mark)
 		case cdataType:
-			fragment.add4(cdataType, depth, marks[0])
+			fragment.add4(cdataType, depth, mark)
 		}
 	}
 
-	fragment.add4(eofType, 0, mark{len(r.bytes), len(r.bytes)})
+	fragment.add4(eofType, 0, Mark{len(r.bytes), len(r.bytes)})
 
 	fragment.bytes = r.sliceBytes()
 

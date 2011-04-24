@@ -16,10 +16,10 @@ func NewBuilder() *Builder {
 		Fragment: newFragment()}
 }
 
-func (b *Builder) writeMarked(s string) mark {
+func (b *Builder) writeMarked(s string) Mark {
 	startIndex := b.Buffer.Len()
 	b.WriteString(s)
-	return mark{startIndex, b.Buffer.Len()}
+	return Mark{startIndex, b.Buffer.Len()}
 }
 
 func (b *Builder) StartElement(name string, args ...string) *Builder {

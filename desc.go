@@ -23,7 +23,7 @@ func (d desc) descLen() int {
 }
 
 func (d desc) descString() string {
-	return fmt.Sprint(d.tokenType(), d.depth(), d.descLen(), d.off())
+	return fmt.Sprintf("type:%d depth:%d len:%d off:%d", d.tokenType(), d.depth(), d.descLen(), d.off())
 }
 
 func (d *desc) setOffLen(offset, length int) {
