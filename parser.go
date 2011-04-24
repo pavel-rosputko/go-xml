@@ -28,43 +28,43 @@ type parser struct {
 	buffer	[]byte
 }
 
-func newParser(reader io.Reader) *parser {
-	return &parser{
+func makeParser(reader io.Reader) parser {
+	return parser{
 		reader: reader,
 		buffer: make([]byte, 1024),
 	}
 }
 
-type mark struct { s, e int }
+type Mark struct { S, E int }
 
 // NOTE eofType instead of f bool ?
-func (p *parser) token() (tokenType int, marks []mark, f bool) {
+func (p *parser) token() (tokenType int, mark Mark, marks []Mark, f bool) {
 	b, e := p.get()
 	if e { return }
 
 	f = true
-	if b != '<' { // text
+	if b != '<' {
 		p.back()
-		tokenType, marks = charsType, []mark{p.markUntilEOFOr('<')}
+		tokenType, mark = charsType, p.markUntilEOFOr('<')
 		return
 	}
 
 	switch p.mustGet() {
-	case '/': // end tag
-		tokenType, marks = endType, []mark{p.name()}
+	case '/':
+		tokenType, mark = endType, p.name()
 
 		if p.mustGetNonSpace() != '>' {
 			p.error("invalid characters between </ and >")
 		}
-	case '?': // directive
+	case '?':
 		index := p.index
 		var  bb, b byte
 		for !(bb == '?' && b == '>') {
 			bb, b = b, p.mustGet()
 		}
 
-		tokenType, marks = directiveType, []mark{{index, p.index - 2}}
-	case '!': // comment or cdata
+		tokenType, mark = directiveType, Mark{index, p.index - 2}
+	case '!':
 		switch p.mustGet() {
 		case '-':
 			if p.mustGet() != '-' {
@@ -77,7 +77,7 @@ func (p *parser) token() (tokenType int, marks []mark, f bool) {
 				b3, b2, b1 = b2, b1, p.mustGet()
 			}
 
-			tokenType, marks = commentType, []mark{{index, p.index - 3}}
+			tokenType, mark = commentType, Mark{index, p.index - 3}
 		case '[':
 			for i := 0; i < 6; i++ {
 				if p.mustGet() != "CDATA"[i] {
@@ -91,13 +91,12 @@ func (p *parser) token() (tokenType int, marks []mark, f bool) {
 				bb, b = b, p.mustGet()
 			}
 
-			tokenType, marks = cdataType, []mark{{index, p.index - 2}}
+			tokenType, mark = cdataType, Mark{index, p.index - 2}
 		default:
-			// probably a directive <!
 		}
-	default: // start tag
+	default:
 		p.back()
-		tokenType, marks = startType, []mark{p.name()}
+		tokenType, mark = startType, p.name()
 
 		var empty bool
 		for {
@@ -130,7 +129,7 @@ func (p *parser) token() (tokenType int, marks []mark, f bool) {
 		}
 
 		if empty {
-			marks = append(marks, mark{})
+			marks = append(marks, Mark{})
 		}
 	}
 
@@ -139,16 +138,15 @@ func (p *parser) token() (tokenType int, marks []mark, f bool) {
 
 func (p *parser) sliceBytes() (bytes []byte) {
 	bytes, p.bytes = p.bytes[:p.index], p.bytes[p.index:]
-
 	p.index = 0
 	return
 }
 
-func (p *parser) markEq(m1, m2 mark) bool {
-	if m1.e - m1.s != m2.e - m2.s { return false }
+func (p *parser) markEq(m1, m2 Mark) bool {
+	if m1.E - m1.S != m2.E - m2.S { return false }
 
-	i, j := m1.s, m2.s
-	for i < m1.e {
+	i, j := m1.S, m2.S
+	for i < m1.E {
 		if p.bytes[i] != p.bytes[j] { return false }
 		i++; j++
 	}
@@ -156,36 +154,41 @@ func (p *parser) markEq(m1, m2 mark) bool {
 	return true
 }
 
-func (p *parser) string(m mark) string {
-	return string(p.bytes[m.s:m.e])
+func (p *parser) string(m Mark) string {
+	return string(p.bytes[m.S:m.E])
 }
 
 func (p *parser) back() {
 	p.index--
 }
 
+type ParserError string
+
 func (p *parser) error(s string) {
-	panic(s)
+	panic(ParserError(s))
 }
 
+// TODO more efficiently ? use bufio.Reader
 func (p *parser) read() bool {
-	// TODO more efficiently ? use buffered reader
 	l, e := p.reader.Read(p.buffer)
 
 	// XXX when p.reader is tls.Conn Read can return (0, nil)
 	if l == 0 && e == nil {
 		l, e = p.reader.Read(p.buffer)
 	}
-	buffer := p.buffer[:l]
 	// buf = buf[:length]
 	// println("get: bytes =", string(bytes))
 	// assert (e == os.EOF && p.l == 0)
 
 	if e != nil {
-		if e == os.EOF { return false } else { panic(e) }
+		if e == os.EOF {
+			return false
+		} else {
+			panic(e)
+		}
 	}
 
-	p.bytes = append(p.bytes, buffer...)
+	p.bytes = append(p.bytes, p.buffer[:l]...)
 
 	return true
 }
@@ -235,8 +238,8 @@ func (p *parser) mustGetNonSpace() (b byte) {
 	return
 }
 
-func (p *parser) markUntil(b byte) (m mark) {
-	m.s = p.index
+func (p *parser) markUntil(b byte) (m Mark) {
+	m.S = p.index
 	for {
 		if p.index == len(p.bytes) {
 			p.mustRead()
@@ -249,12 +252,12 @@ func (p *parser) markUntil(b byte) (m mark) {
 		p.index++
 	}
 
-	m.e = p.index
+	m.E = p.index
 	return
 }
 
-func (p *parser) markUntilEOFOr(b byte) (m mark) {
-	m.s = p.index
+func (p *parser) markUntilEOFOr(b byte) (m Mark) {
+	m.S = p.index
 	for {
 		if p.index == len(p.bytes) {
 			if !p.read() {
@@ -269,7 +272,7 @@ func (p *parser) markUntilEOFOr(b byte) (m mark) {
 		p.index++
 	}
 
-	m.e = p.index
+	m.E = p.index
 	return
 }
 
@@ -280,8 +283,8 @@ func isNameByte(b byte) bool {
 		b == '_' || b == ':' || b == '.' || b == '-'
 }
 
-func (p *parser) name() (m mark) {
-	m.s = p.index
+func (p *parser) name() (m Mark) {
+	m.S = p.index
 	if b := p.mustGet(); !(b >= utf8.RuneSelf || isNameByte(b)) {
 		p.error("invalid tag name first letter")
 	}
@@ -299,7 +302,7 @@ func (p *parser) name() (m mark) {
 
 	}
 
-	m.e = p.index
+	m.E = p.index
 	return
 
 	// TODO check the characters in [i:p.index]

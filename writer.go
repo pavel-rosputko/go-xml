@@ -33,7 +33,7 @@ func (w *Writer) flush() {
 }
 
 func (w *Writer) StartDocument() *Writer {
-	w.writeString("<?xml version='1.0' encoding='utf-8'?>")
+	w.writeString("<?xml version='1.0'?>")
 	return w
 }
 
@@ -70,6 +70,14 @@ func (w *Writer) EndElement() *Writer {
 	w.writeByte('>')
 
 	return w
+}
+
+func (w *Writer) EndElementNoTrack(name string) {
+	w.writeByte('<')
+	w.writeByte('/')
+	w.writeString(name)
+	w.writeByte('>')
+	w.Flush()
 }
 
 func (w *Writer) Element(name string, args ...string) *Writer {
