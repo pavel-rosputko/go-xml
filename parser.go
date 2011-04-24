@@ -25,16 +25,16 @@ type parser struct {
 	reader	io.Reader
 	next	byte
 	index	int
-	length	int
 	eof	bool
 	bytes	[]byte
+	buffer	[]byte
 }
 
 func newParser(reader io.Reader) *parser {
 	return &parser{
 		reader: reader,
 		index: -1,
-		length: 0}
+		buffer: make([]byte, 1024)}
 }
 
 // NOTE use slice ?
@@ -48,6 +48,7 @@ func (p *parser) token() (tokenType int, marks []mark, f bool) {
 	f = true
 	if p.next != '<' { // text
 		index := p.index
+		// move internal
 		for !p.eof && p.next != '<' { p.get() }
 
 		tokenType, marks = charsType, []mark{{index, p.index}}
@@ -166,7 +167,6 @@ func (p *parser) sliceBytes() (bytes []byte) {
 	p.index++
 	bytes, p.bytes = p.bytes[:p.index], p.bytes[p.index:]
 
-	p.length -= p.index
 	p.index = -1
 	return
 }
@@ -228,17 +228,17 @@ func (p *parser) get() {
 	if p.eof { return }
 
 	p.index++
-	if p.index >= p.length {
+	if p.index >= len(p.bytes) {
 		// TODO more efficiently ? use buffered reader
-		bytes := make([]byte, 1024)
-		length, error := p.reader.Read(bytes)
+		length, error := p.reader.Read(p.buffer)
 
 		// XXX when p.reader is tls.Conn Read can return (0, nil)
 		if length == 0 && error == nil {
-			length, error = p.reader.Read(bytes)
+			length, error = p.reader.Read(p.buffer)
 		}
-		bytes = bytes[:length]
-		println("get: bytes =", string(bytes))
+		buffer := p.buffer[:length]
+		// buf = buf[:length]
+		// println("get: bytes =", string(bytes))
 		// assert (e == os.EOF && p.l == 0)
 
 		if error != nil {
@@ -250,8 +250,7 @@ func (p *parser) get() {
 			}
 		}
 
-		p.bytes = append(p.bytes, bytes...)
-		p.length += length
+		p.bytes = append(p.bytes, buffer...)
 	}
 
 	p.next = p.bytes[p.index]

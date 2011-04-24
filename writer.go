@@ -9,7 +9,7 @@ import (
 // TODO escaping
 type Writer struct {
 	*bufio.Writer
-	stack
+	stringStack
 }
 
 func NewWriter(ioWriter io.Writer) *Writer {
@@ -104,7 +104,7 @@ func (w *Writer) End() {
 }
 
 func (w *Writer) Send() {
-	w.stack.clean()
+	w.stringStack.clean()
 	w.Flush()
 }
 
@@ -112,17 +112,3 @@ func (w *Writer) Raw(s string) *Writer {
 	w.writeString(s)
 	return w
 }
-
-type stack []string
-
-func (s *stack) push(v string) { *s = append(*s, v) }
-
-func (s *stack) pop() (v string) {
-	v, *s = (*s)[len(*s) - 1], (*s)[0:len(*s) - 1]
-	return
-}
-
-func (s stack) isEmpty() bool { return len(s) == 0 }
-func (s *stack) clean() { *s = (*s)[0:0] }
-
-

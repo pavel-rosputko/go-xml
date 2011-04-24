@@ -1,7 +1,7 @@
 package xml
 
 import (
-	"fmt"
+	// "fmt"
 	"io"
 )
 
@@ -33,12 +33,10 @@ func NewReader(ioReader io.Reader) *Reader {
 
 // TODO return Fragment or mark ?
 func (r *Reader) ReadStartElement() *Fragment {
-	println("ReadStartElement")
 	fragment := newFragment()
 
 	tt, m, f := r.token()
 	for {
-		fmt.Println("tt =", tt, "m =", m)
 		if !f { r.error("no tokens") }
 		if tt == startType { break }
 		tt, m, f = r.token()
@@ -55,6 +53,7 @@ func (r *Reader) ReadStartElement() *Fragment {
 	return fragment
 }
 
+// FIXME when chars exists before first start-element they are ignore in descs but exist in bytes, remove them ?
 func (r *Reader) ReadElement() *Fragment {
 	fragment := newFragment()
 
@@ -66,7 +65,7 @@ func (r *Reader) ReadElement() *Fragment {
 
 		switch tokenType {
 		case startType:
-			fmt.Println("start-tag", marks[0])
+			// fmt.Println("startType", marks)
 			fragment.addStart(marks, depth)
 
 			if len(marks) % 2 != 0 {
@@ -81,15 +80,16 @@ func (r *Reader) ReadElement() *Fragment {
 			if !f { r.error("unexpected end tag") }
 			if !r.markEq(marks[0], mark) { panic("wrong end tag name") }
 			fragment.add4(endType, depth, marks[0])
-			fmt.Println("end-tag", marks[0], r.parser.string(marks[0]))
 
 			if r.isEmpty() { done = true }
 		case charsType:
+			// fmt.Println("charsType", marks)
+
+			// skip pre- and after-element chars
+			if depth == 0 { continue }
 			fragment.add4(charsType, depth, marks[0])
-			fmt.Println("char-data", marks[0], r.parser.string(marks[0]))
 		case cdataType:
 			fragment.add4(cdataType, depth, marks[0])
-			fmt.Println("cdata", marks[0], r.parser.string(marks[0]))
 		}
 	}
 

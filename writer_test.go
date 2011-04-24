@@ -14,7 +14,7 @@ func TestWriter(t *testing.T) {
 			Element("child1", "text").
 		EndDocument()
 
-	if !w.stack.isEmpty() { t.Fatal("non empty stack") }
+	if !w.stringStack.isEmpty() { t.Fatal("non empty stack") }
 
 	println("r =", b.String())
 	if b.String() != s { t.Fatal("wrong") }
@@ -26,7 +26,7 @@ func TestJustStart(t *testing.T) {
 	w := NewWriter(b)
 	w.StartDocument().StartElement("root", "key", "value").Send()
 
-	if !w.stack.isEmpty() { t.Fatal("non empty stack") }
+	if !w.stringStack.isEmpty() { t.Fatal("non empty stack") }
 
 	println("r =", b.String())
 	if b.String() != s { t.Fatal("wrong") }

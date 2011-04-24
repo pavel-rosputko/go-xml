@@ -34,12 +34,12 @@ func (c *Cursor) Attr(name string) (v string, f bool) {
 	i.next()
 	for i.tokenType() == keyType && !i.equalString(name) {
 		i.next(); i.next()
-		println("i.s =", i.string())
-		println(i.tokenType())
-		println(i.equalString(name))
+		// println("i.s =", i.string())
+		// println(i.tokenType())
+		// println(i.equalString(name))
 	}
 
-	println(name)
+	// println(name)
 	if i.tokenType() == keyType {
 		i.next()
 		v, f = i.string(), true
@@ -99,18 +99,25 @@ func (c *Cursor) ChildrenSlice() *Fragment {
 
 	i := c.iterator
 
+	// FIXME
+	// if !i.hasNext() { return fragment }
 	i.next()
 	for i.tokenType() != startType {
+		if !i.hasNext() { return fragment }
 		i.next()
 	}
 
 	startIndex := i.desc.off() - 1 // <
 	for i.depth() != c.depth() {
-		fragment.add(i.desc)
+		desc := i.desc
+		desc.setOff(desc.off() - startIndex)
+		fragment.add(desc)
 		i.next()
 	}
 	endIndex := i.desc.off() - 2 // </
 
+	// println("si, ei =", startIndex, endIndex)
+	// println("f.bytes =", string(c.Fragment.bytes))
 	fragment.bytes = c.Fragment.bytes[startIndex:endIndex]
 
 	return fragment
@@ -121,5 +128,3 @@ func (c *Cursor) ChildrenSlice() *Fragment {
 // func (c *Cursor) TextInt() int // TextAsInt
 // ToChild, ToFirstChild, ToLastChild, ToSibling, ToNextSibling, toPrevSibling
 // func (c *Cursor) ToChildS(s string)
-
-
