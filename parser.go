@@ -19,6 +19,12 @@ const (
 	eofType
 )
 
+const (
+	noneState = iota
+	startState
+	keyState
+)
+
 // NOTE a: Indexer
 // NOTE: use bytes.Buffer instead of bytes ?
 type parser struct {
