@@ -21,7 +21,7 @@ func TestWriter(t *testing.T) {
 }
 
 func TestJustStart(t *testing.T) {
-	const s = "<?xml version='1.0' encoding='utf-8'?><root key='value'>"
+	const s = "<?xml version='1.0'?><root key='value'>"
 	b := bytes.NewBufferString("")
 	w := NewWriter(b)
 	w.StartDocument().StartElement("root", "key", "value").Send()

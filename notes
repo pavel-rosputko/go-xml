@@ -1,0 +1,5 @@
+- interface{} usage as returning is costly!
+- is Token() returning structs & usage rtti ok ?
+- Attr without passing string object ?
+- split tokenType types and vtd types ?
+- merge reader with parser ?
